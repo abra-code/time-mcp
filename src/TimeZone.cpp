@@ -71,8 +71,13 @@ size_t bodySize(const Header &header, size_t timeSize) {
 
 bool skipRuleName(const char *&cursor) {
     if (*cursor == '<') {
-        const char *close = strchr(cursor, '>');
-        if (close == nullptr || close == cursor + 1) {
+        // The quoted form: letters, digits, plus and minus, three or more.
+        const char *close = cursor + 1;
+        while ((*close >= 'A' && *close <= 'Z') || (*close >= 'a' && *close <= 'z') ||
+               (*close >= '0' && *close <= '9') || *close == '+' || *close == '-') {
+            ++close;
+        }
+        if (*close != '>' || close - cursor - 1 < 3) {
             return false;
         }
         cursor = close + 1;
@@ -344,15 +349,31 @@ LocalType PosixRule::typeAt(int64_t utc) const {
     if (!hasDaylight) {
         return standard;
     }
-    int64_t toDaylight = 0;
-    int64_t toStandard = 0;
-    changesInYear(yearOfSeconds(utc + standard.utcOffset), toDaylight, toStandard);
+    // The latest change at or before `utc` decides. A change can land in
+    // the calendar year next to the one its rule is computed for (a time of
+    // day that is negative or past 24 hours), so the neighboring years are
+    // examined too. Two years back, because both changes of the year before
+    // can land in the first days of this one, after `utc`.
+    const int64_t year = yearOfSeconds(utc + standard.utcOffset);
+    bool found = false;
     bool isDaylight = false;
-    if (toDaylight < toStandard) {
-        isDaylight = utc >= toDaylight && utc < toStandard;
-    } else {
-        // Southern hemisphere: daylight time spans the new year.
-        isDaylight = !(utc >= toStandard && utc < toDaylight);
+    int64_t latest = 0;
+    for (int64_t candidate = year - 2; candidate <= year + 1; ++candidate) {
+        int64_t toDaylight = 0;
+        int64_t toStandard = 0;
+        changesInYear(candidate, toDaylight, toStandard);
+        if (toStandard <= utc && (!found || toStandard > latest)) {
+            found = true;
+            latest = toStandard;
+            isDaylight = false;
+        }
+        // Where both changes fall on one instant daylight time continues:
+        // that is how a rule spells daylight time all year.
+        if (toDaylight <= utc && (!found || toDaylight >= latest)) {
+            found = true;
+            latest = toDaylight;
+            isDaylight = true;
+        }
     }
     return isDaylight ? daylight : standard;
 }
@@ -466,15 +487,19 @@ bool TimeZone::parse(const uint8_t *data, size_t size, TimeZone &out, std::strin
         // last transition (possibly empty), and a newline.
         const uint8_t *footer = body + needed;
         const size_t footerSize = remaining - needed;
-        if (footerSize >= 2 && footer[0] == '\n') {
-            const uint8_t *close = static_cast<const uint8_t *>(memchr(footer + 1, '\n', footerSize - 1));
-            if (close != nullptr && close > footer + 1) {
-                const std::string text(reinterpret_cast<const char *>(footer + 1), static_cast<size_t>(close - footer - 1));
-                if (memchr(text.data(), '\0', text.size()) != nullptr || !PosixRule::parse(text.c_str(), zone.rule_)) {
-                    return false;
-                }
-                zone.hasRule_ = true;
+        if (footerSize < 2 || footer[0] != '\n') {
+            return false;
+        }
+        const uint8_t *close = static_cast<const uint8_t *>(memchr(footer + 1, '\n', footerSize - 1));
+        if (close == nullptr) {
+            return false;
+        }
+        if (close > footer + 1) {
+            const std::string text(reinterpret_cast<const char *>(footer + 1), static_cast<size_t>(close - footer - 1));
+            if (memchr(text.data(), '\0', text.size()) != nullptr || !PosixRule::parse(text.c_str(), zone.rule_)) {
+                return false;
             }
+            zone.hasRule_ = true;
         }
     }
 

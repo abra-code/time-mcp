@@ -58,6 +58,8 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     add_test(NAME protocol
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_time_mcp.py $<TARGET_FILE:time-mcp>)
+    add_test(NAME tzif
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_tzif.py $<TARGET_FILE:zonedump> $<TARGET_FILE:time-mcp>)
     add_test(NAME zones
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_zones.py $<TARGET_FILE:zonedump> $<TARGET_FILE:time-mcp>)
 endif()

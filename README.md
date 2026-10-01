@@ -112,10 +112,12 @@ The tests need Python 3.9 or later (standard library only).
 ```
 cmake --build build --target time-mcp zonedump
 python3 test/test_time_mcp.py build/time-mcp
+python3 test/test_tzif.py build/zonedump build/time-mcp
 python3 test/test_zones.py build/zonedump build/time-mcp
 ```
 
 - `test_time_mcp.py` drives the server over stdio: both protocol styles, every revision, the tool list, results, error cases and malformed input.
+- `test_tzif.py` runs the time zone reader on zone files written for the test: every form of the rule that follows a zone's last recorded change, and files damaged in each way the reader must refuse.
 - `test_zones.py` compares the time zone reader with two independent readers of the same database, Python's `zoneinfo` and the C library, for every zone: hourly through one year, coarsely from 1900 to 2100, and every 5 minutes around each clock change. It takes about a minute.
 
 Or, after building both targets, `ctest --test-dir build`.
