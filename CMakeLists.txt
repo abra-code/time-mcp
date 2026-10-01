@@ -28,7 +28,9 @@ target_compile_definitions(yyjson PUBLIC
 
 # Everything but main(), so the test tools link the same code.
 add_library(timemcp STATIC
-    src/McpStdio.cpp)
+    src/McpStdio.cpp
+    src/Platform.cpp
+    src/TimeZone.cpp)
 target_include_directories(timemcp PUBLIC src)
 target_link_libraries(timemcp PUBLIC yyjson)
 target_compile_options(timemcp PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wconversion -fno-exceptions -fno-rtti)
@@ -44,3 +46,15 @@ else()
 endif()
 
 install(TARGETS time-mcp RUNTIME DESTINATION bin)
+
+# Test tool: prints a zone's offsets over a range of instants, for comparison
+# with an independent reader of the same database.
+add_executable(zonedump EXCLUDE_FROM_ALL test/zonedump.cpp)
+target_link_libraries(zonedump PRIVATE timemcp)
+
+enable_testing()
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    add_test(NAME zones
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_zones.py $<TARGET_FILE:zonedump>)
+endif()
