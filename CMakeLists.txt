@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Nothing here needs a recent macOS; any release that runs arm64 will do.
+# Nothing here needs a recent macOS. 12.0 is the oldest target Xcode 27 builds for: with an
+# older one the Xcode generator (cmake -G Xcode) cannot even identify the compiler.
 if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version")
 endif()
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
