@@ -8,7 +8,8 @@ For every zone in the database:
 1. offsets and daylight saving flags at UTC instants, hourly through 2026
    and every 11 days or so from 1900 to 2100, against zoneinfo;
 2. the same hourly and from 1970 to 2100 every 3 hours against localtime_r
-   (to 2037 where the C library is known to be wrong after that);
+   (to 2037 where the C library is known to be wrong after that, and from a
+   zone's only recorded change where one is known to be wrong before it);
 3. wall clock readings every 5 minutes around each 2026 change, against
    zoneinfo's first-occurrence rule (fold=0);
 4. the server's own answers, get_current_time and convert_time, at a set of
@@ -17,6 +18,7 @@ For every zone in the database:
 
 import json
 import os
+import struct
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -77,15 +79,42 @@ class Dump:
         self.process.wait()
 
 
-def rule_of(name):
-    """The POSIX TZ rule at the end of the zone's file, or an empty string."""
+def file_of(name):
+    """The contents of the zone's file, or nothing."""
     for directory in TZPATH:
         path = os.path.join(directory, name)
         if os.path.isfile(path):
             with open(path, "rb") as file:
-                lines = file.read().split(b"\n")
-            return lines[-2].decode("ascii", "replace") if len(lines) >= 3 else ""
-    return ""
+                return file.read()
+    return b""
+
+
+def rule_of(name):
+    """The POSIX TZ rule at the end of the zone's file, or an empty string."""
+    lines = file_of(name).split(b"\n")
+    return lines[-2].decode("ascii", "replace") if len(lines) >= 3 else ""
+
+
+def only_change_of(name):
+    """The instant of the zone's recorded change when its file records exactly
+    one, otherwise None."""
+    data = file_of(name)
+    if data[:4] != b"TZif" or len(data) < 44:
+        return None
+    # A header, then a block with 32-bit instants; from version 2 on a second
+    # header and a block with 64-bit instants follow, and those are the ones
+    # a reader uses.
+    utc_flags, standard_flags, leaps, times, types, letters = struct.unpack(">6l", data[20:44])
+    start, time_format = 44, ">l"
+    if data[4:5] != b"\0":
+        second = 44 + times * 5 + types * 6 + letters + leaps * 8 + standard_flags + utc_flags
+        if len(data) < second + 44:
+            return None
+        times = struct.unpack(">l", data[second + 32:second + 36])[0]
+        start, time_format = second + 44, ">q"
+    if times != 1 or len(data) < start + struct.calcsize(time_format):
+        return None
+    return struct.unpack_from(time_format, data, start)[0]
 
 
 def python_utc_changes(zone, start, end, step):
@@ -137,7 +166,18 @@ def test_reader(names):
         # that takes over after the last recorded transition ("M3.5.0/-1",
         # three Greenland zones), so those are compared up to 2037 only.
         libc_end = LIBC_RULE_LIMIT if "/-" in rule_of(name) else LONG_END
+        # musl, the C library of a static Linux build, gives a zone with one
+        # recorded change the time after that change at every instant, also
+        # before it: Antarctica/Rothera, a station that opened in 1976, comes
+        # out 3 hours behind UTC in 1970 too, where the zone's file, Python
+        # and the other C libraries have no offset yet. Such a zone is
+        # compared from its change on, with every C library: nothing here
+        # asks which one it is, and all that is given up is those years of
+        # that zone, the only one whose single change is later than 1970.
+        # The comparison with zoneinfo above covers them.
+        libc_start = only_change_of(name) or 0
         for start, end, step in [(YEAR_START, YEAR_END, 3600), (0, libc_end, 10800)]:
+            start = max(start, libc_start)
             lines = dump.ask("libc", name, start, end, step)
             if lines[-1] != "end 0":
                 fail("%s: differs from localtime_r: %s" % (name, lines[:2] + lines[-1:]))

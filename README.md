@@ -115,6 +115,20 @@ Settings are given on the command line:
 
 A build with other settings in the same folder rebuilds everything, so settings can be changed without `make clean`.
 
+### Linux
+
+On a Linux system the build is the same `make`, with the system's compiler and its C and C++ libraries. Debian 13 and Ubuntu 26.04 need nothing beyond `build-essential` for it.
+
+A Mac can build the Linux program too, as one static program per processor type that runs on any Linux system of that type, whatever C library the system has:
+
+```
+make linux
+```
+
+The results are `build/linux-aarch64/time-mcp` (ARM) and `build/linux-x86_64/time-mcp` (Intel and AMD), each with the test tool `zonedump` beside it. `make linux-aarch64` and `make linux-x86_64` build one of the two.
+
+Xcode cannot build for Linux, so this needs two downloads from [swift.org](https://www.swift.org/install/macos): a Swift toolchain, for its clang and its linker, and the Static Linux SDK of the same version, for the C and C++ libraries that go into the program (musl and libc++). `make linux` uses the newest toolchain in `~/Library/Developer/Toolchains` or `/Library/Developer/Toolchains` whose SDK is in `~/Library/org.swift.swiftpm/swift-sdks`, and says what is missing when there is none. To use a pair that is somewhere else, give both `LINUX_TOOLCHAIN` (the folder with `clang`, `clang++` and `ld.lld`) and `LINUX_SDK` (the folder with `aarch64` and `x86_64`).
+
 ## Testing
 
 The tests need Python 3.9 or later (standard library only).
@@ -136,6 +150,8 @@ python3 test/test_time_mcp.py build/time-mcp
 python3 test/test_tzif.py build/zonedump build/time-mcp
 python3 test/test_zones.py build/zonedump build/time-mcp
 ```
+
+That is how a program built with `make linux` is tested, since it does not run on the Mac that built it: copy the `test` folder and `build/linux-aarch64` (or `build/linux-x86_64`) to a Linux system of that processor type and run the three scripts there with the two programs of that folder.
 
 ## Protocol notes
 

@@ -285,7 +285,11 @@ def test_get_current_time():
         ("Etc/GMT+5", NOW, "2026-10-01T05:57:59-05:00", "Thursday", False),
         ("America/New_York", 0, "1969-12-31T19:00:00-05:00", "Wednesday", False),
         ("America/New_York", -1, "1969-12-31T18:59:59-05:00", "Wednesday", False),
-        ("Europe/Amsterdam", -1000000000, "1938-04-24T23:13:20+01:00", "Sunday", True),
+        # Long before 1970, in a zone every system has the same history for.
+        # Not Europe/Amsterdam or another zone the database now keeps as a
+        # copy of a neighbor: macOS ships the copy (Brussels), Debian and
+        # Ubuntu the zone's own older history, and the two differ in 1938.
+        ("Europe/Brussels", -1000000000, "1938-04-24T23:13:20+01:00", "Sunday", True),
         ("Europe/Paris", 4102444800, "2100-01-01T01:00:00+01:00", "Friday", False),
         ("Europe/Paris", 4118000000, "2100-06-30T02:53:20+02:00", "Wednesday", True),
         ("America/Sao_Paulo", 32503680000, "2999-12-31T21:00:00-03:00", "Tuesday", False),
