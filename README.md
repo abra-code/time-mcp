@@ -96,31 +96,46 @@ Time zone rules therefore follow the operating system's updates; nothing is comp
 
 ## Building
 
-Requires CMake 3.16 or later and a C++17 compiler.
+Requires GNU make 3.81 or later and a C++17 compiler, and nothing else: Xcode or its Command Line Tools on macOS, the `build-essential` package on Debian and Ubuntu.
 
 ```
-cmake -S . -B build
-cmake --build build
+make
 ```
 
-The result is `build/time-mcp`. On macOS, add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to the first command for a universal binary.
+The result is `build/time-mcp`. `make install` copies it to `/usr/local/bin`, or to the `bin` folder of another place with `make install PREFIX=/opt/time-mcp`.
+
+Settings are given on the command line:
+
+| Setting | |
+|---|---|
+| `ARCHS="arm64 x86_64"` | macOS: build a universal binary. Without it the program is built for the Mac it is built on. |
+| `MACOSX_DEPLOYMENT_TARGET=13.0` | macOS: the oldest macOS the program runs on. The default is 12.0. |
+| `BUILD_DIR=build/debug` | Build in another folder. The default is `build`. |
+| `CXXFLAGS`, `CFLAGS`, `CPPFLAGS`, `LDFLAGS` | Compiler and linker options. The defaults build a small program (`-Os -DNDEBUG`). |
+
+A build with other settings in the same folder rebuilds everything, so settings can be changed without `make clean`.
 
 ## Testing
 
 The tests need Python 3.9 or later (standard library only).
 
 ```
-cmake --build build --target time-mcp zonedump
+make test
+```
+
+This builds the server and `build/zonedump`, a tool two of the tests use, and runs the three tests. `make test-protocol`, `make test-tzif` and `make test-zones` run one of them; `make -k test` goes on to the next when one fails.
+
+- `test-protocol` (`test/test_time_mcp.py`) drives the server over stdio: both protocol styles, every revision, the tool list, results, error cases and malformed input.
+- `test-tzif` (`test/test_tzif.py`) runs the time zone reader on zone files written for the test: every form of the rule that follows a zone's last recorded change, and files damaged in each way the reader must refuse.
+- `test-zones` (`test/test_zones.py`) compares the time zone reader with two independent readers of the same database, Python's `zoneinfo` and the C library, for every zone: hourly through one year, coarsely from 1900 to 2100, and every 5 minutes around each clock change. It takes about a minute.
+
+Each test is a script that takes the programs to test as arguments:
+
+```
 python3 test/test_time_mcp.py build/time-mcp
 python3 test/test_tzif.py build/zonedump build/time-mcp
 python3 test/test_zones.py build/zonedump build/time-mcp
 ```
-
-- `test_time_mcp.py` drives the server over stdio: both protocol styles, every revision, the tool list, results, error cases and malformed input.
-- `test_tzif.py` runs the time zone reader on zone files written for the test: every form of the rule that follows a zone's last recorded change, and files damaged in each way the reader must refuse.
-- `test_zones.py` compares the time zone reader with two independent readers of the same database, Python's `zoneinfo` and the C library, for every zone: hourly through one year, coarsely from 1900 to 2100, and every 5 minutes around each clock change. It takes about a minute.
-
-Or, after building both targets, `ctest --test-dir build`.
 
 ## Protocol notes
 
